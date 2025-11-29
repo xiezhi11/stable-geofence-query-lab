@@ -122,3 +122,4 @@ WebSocket stream for real-time tracking
 Batch GPS event ingestion
 Store vehicle history in a real database
 
+# geofence-event-service
