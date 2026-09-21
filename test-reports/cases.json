@@ -1,0 +1,163 @@
+[
+  {
+    "name": "test_overlap_priority_then_version",
+    "input_version": 3,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_event_time_selects_different_versions_and_ignores_server_time",
+    "input_version": 2,
+    "clock": "2026-12-31T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_failed_zone_update_is_atomic",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_fixed_clock_batch_pagination_and_restart",
+    "input_version": 1,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_pagination_filters_total_and_next_page_are_consistent",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_sqlite_fixture_persists_confirmed_result_and_can_reset",
+    "input_version": 1,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_batch_preserves_order_and_keeps_valid_results_after_failure",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_nonexistent_zone_reference_and_expired_version_have_distinct_codes",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_revoked_zone_keeps_history_but_rejects_new_events",
+    "input_version": 3,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_validation_error_paths_are_stable[payload0-latitude]",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_validation_error_paths_are_stable[payload3-zone_version]",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_validation_error_paths_are_stable[payload4-event_id]",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_validation_error_paths_are_stable[payload1-longitude]",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_late_cross_day_event_accepted_after_end_but_closed_after_late_until",
+    "input_version": 1,
+    "clock": "2026-01-02T04:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_restart_preserves_confirmed_match_without_timezone_dependence",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_http_error_contract_has_stable_code_and_no_stack_path",
+    "input_version": 1,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_concurrent_page_reads_do_not_duplicate_or_skip",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_boundary_circle_and_polygon_are_included",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_reset_interface_clears_zones_events_windows_and_clock",
+    "input_version": 1,
+    "clock": "2026-09-21T04:41:34.210988Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_duplicate_returns_first_confirmation_even_if_later_submission_closed",
+    "input_version": 2,
+    "clock": "2026-01-04T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_validation_error_paths_are_stable[payload2-timestamp]",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_batch_uses_starting_snapshot_when_zones_change_during_processing",
+    "input_version": 3,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  },
+  {
+    "name": "test_pagination_is_stable_when_new_events_are_inserted",
+    "input_version": 2,
+    "clock": "2026-01-01T00:00:00Z",
+    "cleanup": "verified_clean",
+    "pollution_source": null
+  }
+]

@@ -1,134 +1,129 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-from math import radians, sin, cos, sqrt, atan2
+from __future__ import annotations
 
-app = FastAPI(title="Geofence Event Service")
+import os
+from contextlib import asynccontextmanager
+from typing import Any, Optional
 
-# Hardcoded Geofence Zones
-ZONES = [
-    {
-        "id": "zone_circle",
-        "name": "Central Park",
-        "type": "circle",
-        "center": [40.785091, -73.968285],   
-        "radius_m": 500
-    },
-    {
-        "id": "zone_poly",
-        "name": "Town Square",
-        "type": "polygon",
-        "points": [
-            [40.757, -73.9855],
-            [40.757, -73.9830],
-            [40.755, -73.9830],
-            [40.755, -73.9855]
-        ]
-    }
-]
+from fastapi import FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
-# In-memory store
-vehicle_state: Dict[str, Dict[str, Any]] = {}
-event_log: List[Dict[str, Any]] = []
-
-# Utility Functions
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371000
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = (
-        sin(dlat / 2) ** 2
-        + cos(radians(lat1))
-        * cos(radians(lat2))
-        * sin(dlon / 2) ** 2
-    )
-    return 2 * R * atan2(sqrt(a), sqrt(1 - a))
-
-def point_in_polygon(lat, lon, polygon):
-    x, y = lon, lat
-    inside = False
-    n = len(polygon)
-
-    for i in range(n):
-        lat1, lon1 = polygon[i]
-        lat2, lon2 = polygon[(i + 1) % n]
-
-        if ((lat1 > y) != (lat2 > y)) and \
-                (x < (lon2 - lon1) * (y - lat1) / ((lat2 - lat1) + 1e-12) + lon1):
-            inside = not inside
-    return inside
+from geofence import Clock, ExternalNotifier, GeofenceService, ServiceError, parse_time
+from store import create_store
 
 
-def detect_zone(lat, lon):
-    for z in ZONES:
-        if z["type"] == "circle":
-            d = haversine(lat, lon, z["center"][0], z["center"][1])
-            if d <= z["radius_m"]:
-                return z
-        else:
-            if point_in_polygon(lat, lon, z["points"]):
-                return z
-    return None
+def create_app(state_path: Optional[str] = None) -> FastAPI:
+    path = state_path or os.environ.get("GEOFENCE_STATE_PATH")
+    store = create_store(path) if path else None
+    clock = Clock()
+    notifications: list[dict[str, Any]] = []
+    service = GeofenceService(clock=clock, notifier=ExternalNotifier(notifications.append), store=store)
 
-# Models
-class Event(BaseModel):
-    vehicle_id: str
-    latitude: float
-    longitude: float
-    timestamp: Optional[datetime] = None
+    app = FastAPI(title="Deterministic Geofence Event Service")
+    app.state.service = service
+    app.state.clock = clock
+    app.state.notifications = notifications
 
-# Endpoints
-@app.post("/events")
-def receive_event(evt: Event):
-    ts = evt.timestamp or datetime.utcnow()
+    @app.exception_handler(ServiceError)
+    async def service_error_handler(request: Request, exc: ServiceError):
+        status_codes = {
+            "invalid_format": 400,
+            "invalid_coordinates": 400,
+            "invalid_cursor": 400,
+            "zone_not_found": 404,
+            "window_not_found": 404,
+            "version_expired": 409,
+            "duplicate_event": 409,
+        }
+        return JSONResponse(exc.to_dict(), status_code=status_codes.get(exc.code, 400))
 
-    zone = detect_zone(evt.latitude, evt.longitude)
-    zone_id = zone["id"] if zone else None
+    @app.exception_handler(Exception)
+    async def generic_error_handler(request: Request, exc: Exception):
+        return JSONResponse({"error": {"code": "internal_error", "message": "Request failed."}}, status_code=500)
 
-    prev = vehicle_state.get(evt.vehicle_id)
-    prev_zone = prev["zone_id"] if prev else None
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(request: Request, exc: RequestValidationError):
+        first = exc.errors()[0] if exc.errors() else {"loc": ["body"], "msg": "Invalid request."}
+        location = [str(part) for part in first.get("loc", ["body"]) if part != "body"]
+        field_path = ".".join(location) if location else "body"
+        return JSONResponse({"error": {"code": "invalid_format", "message": "Request format is invalid.",
+                                       "field_path": field_path}}, status_code=400)
 
-    action = None
-    if prev_zone != zone_id:
-        if prev_zone is None and zone_id:
-            action = "enter"
-        elif prev_zone and zone_id is None:
-            action = "exit"
-        elif prev_zone and zone_id:
-            action = "zone_changed"
+    @asynccontextmanager
+    async def fixed_clock(request: Request):
+        value = request.headers.get("X-Fixed-Clock")
+        moment = parse_time(value, "X-Fixed-Clock") if value else None
+        with app.state.clock.fixed(moment):
+            yield
 
-    vehicle_state[evt.vehicle_id] = {
-        "zone_id": zone_id,
-        "zone_name": zone["name"] if zone else None,
-        "last_seen": ts.isoformat()
-    }
+    @app.post("/admin/reset")
+    async def reset(request: Request):
+        async with fixed_clock(request):
+            app.state.notifications.clear()
+            return app.state.service.reset()
 
-    record = {
-        "vehicle_id": evt.vehicle_id,
-        "latitude": evt.latitude,
-        "longitude": evt.longitude,
-        "timestamp": ts.isoformat(),
-        "zone_id": zone_id,
-        "action": action
-    }
-    event_log.append(record)
+    @app.post("/admin/clock")
+    async def set_clock(payload: dict[str, Any]):
+        value = payload.get("now")
+        if value is None:
+            app.state.clock.reset()
+            return {"clock": "system"}
+        moment = parse_time(value, "now")
+        app.state.clock.set(moment)
+        return {"clock": moment.isoformat().replace("+00:00", "Z")}
 
-    return {"status": "ok", "event": record}
+    @app.put("/zones")
+    async def replace_zones(payload: dict[str, Any]):
+        zones = payload.get("zones")
+        if not isinstance(zones, list):
+            raise ServiceError("invalid_format", "zones must be an array.", "zones")
+        return app.state.service.replace_zones(zones)
+
+    @app.get("/zones/{zone_id}")
+    async def get_zone(zone_id: str, at: Optional[str] = None):
+        return app.state.service.get_zone(zone_id, at)
+
+    @app.post("/windows")
+    async def put_window(payload: dict[str, Any]):
+        return app.state.service.put_window(payload)
+
+    @app.post("/events")
+    async def submit_event(request: Request, payload: dict[str, Any]):
+        async with fixed_clock(request):
+            return app.state.service.submit_event(payload)
+
+    @app.post("/events/batch")
+    async def submit_batch(request: Request, payload: dict[str, Any]):
+        async with fixed_clock(request):
+            return app.state.service.submit_batch(payload)
+
+    @app.get("/matches")
+    async def query_matches(
+        zone_id: Optional[str] = None,
+        status: Optional[str] = None,
+        unmatched_only: bool = False,
+        limit: int = Query(50, ge=1, le=200),
+        cursor: Optional[str] = None,
+    ):
+        return app.state.service.query_records(
+            {"zone_id": zone_id, "status": status, "unmatched_only": unmatched_only},
+            limit=limit,
+            cursor=cursor,
+        )
+
+    @app.post("/snapshots/restart")
+    async def restart_from_store():
+        if app.state.service.store is None:
+            return {"status": "restarted", "persistence": "disabled"}
+        state = app.state.service.store.load()
+        app.state.service.load_state(state)
+        return {"status": "restarted", "persistence": "enabled", "records": len(state.get("records", []))}
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
+    return app
 
 
-@app.get("/vehicle/{vehicle_id}")
-def get_vehicle(vehicle_id: str):
-    if vehicle_id not in vehicle_state:
-        raise HTTPException(404, "Vehicle not found")
-    return vehicle_state[vehicle_id]
-
-
-@app.get("/zones")
-def get_zones():
-    return ZONES
-
-
-@app.get("/events")
-def get_events(limit: int = 100):
-    return list(reversed(event_log))[:limit]
+app = create_app()
